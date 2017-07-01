@@ -10,6 +10,7 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/legacy/legacy.hpp>
 
+#include <math.h>
 #include <iostream>
 #include <string>
 #include <stdio.h>
@@ -23,8 +24,9 @@ class Opt_flow {
     cv::VideoCapture video;
     cv::String filename;
     cv::Mat frame;
-    cv::Mat mov_mat,black_mat;
-    cv::Mat next_frame;
+    cv::Mat opt_flow,flow_mask;
+    cv::Mat prev_frame,next_frame;
+    cv::Mat x_vals,y_vals;
     std::vector<float> vel_x;
     std::vector<float> vel_y;
     float std_error;
@@ -32,7 +34,7 @@ class Opt_flow {
     float errors;
     int counter;
     CvSize win_size;
-    int passo,interval_pixels,tam_vel;
+    int step,interval_pixels,tam_vel;
     int kernel_size;
 
 
@@ -40,64 +42,81 @@ class Opt_flow {
 
     Opt_flow(cv::VideoCapture video_ , cv::String filename_) {
       cv::namedWindow("Video");
-      cv::namedWindow("Movement");
+      cv::namedWindow("OPT_FLOW");
+      //cv::namedWindow("OPT_FLOW-X");
+      //cv::namedWindow("OPT_FLOW-Y");
       video=video_;
       filename=filename_;
       std_error=80;
       counter=0;
       std_error=(std_error/100);
-      passo=1;
       win_size.height=3;
       win_size.width=3;
-      interval_pixels=5;
-      tam_vel=1;
       kernel_size=3;
+      interval_pixels=2;
+      tam_vel=1;
+      step=5;
 
       video.open(filename);
     }
 
     ~Opt_flow(){
       cv::destroyWindow("Video");
-      cv::destroyWindow("Movement");
+      //cv::destroyWindow("OPT_FLOW-X");
+      //cv::destroyWindow("OPT_FLOW-Y");
+      cv::destroyWindow("OPT_FLOW");
     }
 
     void play(){
       int i=0;
       while (char(cv::waitKey(1))!='q'&&video.isOpened()){
-        video >> next_frame;
-        cv::cvtColor(next_frame,next_frame,cv::COLOR_BGR2GRAY);
-        cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+        video >> frame;
 
-        if(i==0){
-          mov_mat=next_frame.clone();
-          blackfy();
-          black_mat=mov_mat.clone();
+        if (i==0){
+          cv::cvtColor(frame,prev_frame,cv::COLOR_BGR2GRAY);
+          cv::GaussianBlur(prev_frame,prev_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+
+          //flow_mask=frame.clone();
+          //cv::cvtColor(flow_mask,flow_mask,cv::COLOR_BGR2GRAY);
+          //blackfy(flow_mask);
         }
 
-        if(i!=0&&i%passo==0){
-          mov_mat=black_mat.clone();
-          //std::cout << '\n';
-          //std::cout << "FRAME: \n" << frame.size() << "|" << frame.channels() << '\n';
-          //std::cout << "NEXT_FRAME: \n" << next_frame.size() << "|" << next_frame.channels() << '\n';
+        if(i!=0&&i%step==0){
+          cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
+          cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+
+          //std::cout << "PREV_FRAME:" << prev_frame.size() << '|' << prev_frame.channels() << '\n';
+          //std::cout << "NEXT_FRAME:" << next_frame.size() << '|' << next_frame.channels() << '\n';
           //getchar();
 
-          cv::calcOpticalFlowFarneback(frame, next_frame, mov_mat, .4, 1, 12, 2, 8, 1.2, 0);
-          draw_flow();
+          cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow, .4, 1, 12, 2, 8, 1.2, 0);
+          draw_flow(opt_flow,frame);
 
-          //if (i%passo==0) {
-            show_frame();
-          //}
+          //blackfy(flow_mask);
+          //draw_flow(opt_flow,flow_mask);
 
+          show_frame();
+
+          prev_frame=next_frame.clone();
         }
 
-        frame=next_frame.clone();
+        std::cout << "i = " << i << '\n';
         i++;
       }
     }
 
     void show_frame(){
       cv::imshow("Video",frame);
-      //v::imshow("Movement",mov_mat);
+      //opt_flow.convertTo(opt_flow,0);
+      //std::cout << "OPT_FLOW:" << opt_flow.size() << '|' << opt_flow.channels() << '|' << opt_flow.type() << '\n';
+      //getchar();
+      get_xvals(opt_flow);
+      get_yvals(opt_flow);
+      generate_flowmask(x_vals,y_vals);
+      cv::GaussianBlur(flow_mask,flow_mask,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+      cv::imshow("OPT_FLOW",flow_mask);
+      //cv::imshow("OPT_FLOW-X",x_vals);
+      //cv::imshow("OPT_FLOW-Y",y_vals);
     }
 
 
@@ -117,7 +136,7 @@ class Opt_flow {
           errors=frame_intensity.val[0]/next_frame_intensity.val[0];
 
           if(errors<1-std_error||errors>1+std_error){
-            mov_mat.at<uint>(i,j)=255;
+            opt_flow.at<uint>(i,j)=255;
             //std::cout << "MUDOU O PIXEL" << '\n';
           }
         }
@@ -126,34 +145,72 @@ class Opt_flow {
 
     }
 
-    void blackfy(){
-      for(int i=0;i<mov_mat.rows;i++){
-        for(int j=0;j<mov_mat.cols;j++){
-          mov_mat.at<uint>(i,j)=0;
+    void blackfy(cv::Mat input){
+      for(int i=0;i<input.rows;i++){
+        for(int j=0;j<input.cols;j++){
+          input.at<uint>(i,j)=0;
           //std::cout << "(" << i << "," << j << ")" << '\n';
         }
       }
     }
 
-    void draw_flow(){
-      for (int y = 0; y < frame.rows; y += interval_pixels) {
-          for (int x = 0; x < frame.cols; x += interval_pixels)
+    void draw_flow(cv::Mat input, cv::Mat output){
+      for (int y = 0; y < output.rows; y += interval_pixels) {
+          for (int x = 0; x < output.cols; x += interval_pixels)
           {
-              // get the flow from y, x position * 3 for better visibility
-              const cv::Point2f flowatxy = mov_mat.at<cv::Point2f>(y, x) * tam_vel;
-              // draw line at flow direction
-              cv::line(frame, cv::Point(x, y), cv::Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), cv::Scalar(255, 0, 0));
-              // draw initial point
-              cv::circle(frame, cv::Point(x, y), 1, cv::Scalar(0, 0, 0), -1);
+              const cv::Point2f flowatxy = input.at<cv::Point2f>(y, x) * tam_vel;
+              cv::line(output, cv::Point(x, y), cv::Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), cv::Scalar(255, 0, 0));
+              cv::circle(output, cv::Point(x, y), 1, cv::Scalar(0, 0, 0), -1);
           }
       }
     }
+
+    void get_xvals(cv::Mat input){
+      x_vals=cv::Mat::zeros(input.rows,input.cols, CV_32F);
+
+      for (int i=0;i<input.rows;i++){
+        for(int j=0;j<input.cols;j++){
+          //std::cout << "X_VALS:" << x_vals.size() << '|' << x_vals.channels() << '|' << x_vals.type() << '\n';
+
+          x_vals.at<float>(i,j)=input.at<cv::Point2f>(i,j).x;
+        }
+      }
+    }
+
+    void get_yvals(cv::Mat input){
+      y_vals=cv::Mat::zeros(input.rows,input.cols, CV_32F);
+
+      for (int i=0;i<input.rows;i++){
+        for(int j=0;j<input.cols;j++){
+          //std::cout << "Y_VALS:" << y_vals.size() << '|' << y_vals.channels() << '|' << y_vals.type() << '\n';
+
+          y_vals.at<float>(i,j)=input.at<cv::Point2f>(i,j).y;
+        }
+      }
+    }
+
+    void generate_flowmask(cv::Mat x_matrix,cv::Mat y_matrix) {
+
+      flow_mask=cv::Mat::zeros(x_matrix.rows,x_matrix.cols, CV_32F);
+
+      for (int i=0;i<x_matrix.rows;i++){
+        for(int j=0;j<x_matrix.cols;j++){
+          flow_mask.at<float>(i,j)=magnitude(x_matrix.at<float>(i,j), y_matrix.at<float>(i,j));
+        }
+      }
+    }
+
+    float magnitude(float a, float b){
+      float mag;
+
+      mag=sqrt((a*a)+(b*b));
+
+      return(mag);
+    }
 };
 
-class Tracker {
 
 
-};
 
 
 //--------------------- Global Variables ---------------------
@@ -163,11 +220,16 @@ class Tracker {
 int main(int argc, char *argv[]){
   cv::String filename;
   cv::VideoCapture video;
+
+  if (argc<=1){
+    std::cout << "\n\nThere was no input video to run.\nPress ENTER to quit.\n>>";
+    getchar();
+    return(-1);
+  }
+
   filename=argv[1];
 
-
   Opt_flow opt_flow(video,filename);
-
   opt_flow.play();
 
   return(0);
