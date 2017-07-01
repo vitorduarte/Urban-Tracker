@@ -36,6 +36,7 @@ class Opt_flow {
     CvSize win_size;
     int step,interval_pixels,tam_vel;
     int kernel_size;
+    int threshold,ratio;
 
 
   public:
@@ -56,6 +57,8 @@ class Opt_flow {
       interval_pixels=2;
       tam_vel=1;
       step=5;
+      threshold=2;
+      ratio=1;
 
       video.open(filename);
     }
@@ -75,10 +78,6 @@ class Opt_flow {
         if (i==0){
           cv::cvtColor(frame,prev_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(prev_frame,prev_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
-
-          //flow_mask=frame.clone();
-          //cv::cvtColor(flow_mask,flow_mask,cv::COLOR_BGR2GRAY);
-          //blackfy(flow_mask);
         }
 
         if(i!=0&&i%step==0){
@@ -89,11 +88,14 @@ class Opt_flow {
           //std::cout << "NEXT_FRAME:" << next_frame.size() << '|' << next_frame.channels() << '\n';
           //getchar();
 
-          cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow, .4, 1, 12, 2, 8, 1.2, 0);
+          cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow, .5, 3, 15, 3, 5, 1.2, 0);
           draw_flow(opt_flow,frame);
 
-          //blackfy(flow_mask);
-          //draw_flow(opt_flow,flow_mask);
+          get_xvals(opt_flow);
+          get_yvals(opt_flow);
+          generate_flowmask(x_vals,y_vals);
+          cv::GaussianBlur(flow_mask,flow_mask,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+          cv::threshold(flow_mask,flow_mask,threshold, threshold*ratio,cv::THRESH_BINARY);
 
           show_frame();
 
@@ -107,16 +109,7 @@ class Opt_flow {
 
     void show_frame(){
       cv::imshow("Video",frame);
-      //opt_flow.convertTo(opt_flow,0);
-      //std::cout << "OPT_FLOW:" << opt_flow.size() << '|' << opt_flow.channels() << '|' << opt_flow.type() << '\n';
-      //getchar();
-      get_xvals(opt_flow);
-      get_yvals(opt_flow);
-      generate_flowmask(x_vals,y_vals);
-      cv::GaussianBlur(flow_mask,flow_mask,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
       cv::imshow("OPT_FLOW",flow_mask);
-      //cv::imshow("OPT_FLOW-X",x_vals);
-      //cv::imshow("OPT_FLOW-Y",y_vals);
     }
 
 
