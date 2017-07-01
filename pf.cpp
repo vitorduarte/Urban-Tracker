@@ -37,6 +37,8 @@ class Opt_flow {
     int step,interval_pixels,tam_vel;
     int kernel_size;
     int threshold,ratio;
+    std::vector<cv::Vec4i> hierarchy;
+    std::vector<std::vector<cv::Point> > contours;
 
 
   public:
@@ -96,7 +98,8 @@ class Opt_flow {
           generate_flowmask(x_vals,y_vals);
           cv::GaussianBlur(flow_mask,flow_mask,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
           cv::threshold(flow_mask,flow_mask,threshold, threshold*ratio,cv::THRESH_BINARY);
-
+          cv::findContours(flow_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+          get_mass_centers(flow_mask);
           show_frame();
 
           prev_frame=next_frame.clone();
@@ -111,7 +114,6 @@ class Opt_flow {
       cv::imshow("Video",frame);
       cv::imshow("OPT_FLOW",flow_mask);
     }
-
 
     void background_extr(){
       int i,j,aux_error;
@@ -200,11 +202,44 @@ class Opt_flow {
 
       return(mag);
     }
+
+    void get_mass_centers(cv::Mat input){
+      vector<Moments> moments(contours.size());
+
+      for(int i=0;i<contours.size();i++){
+        moments[i] = moments(contours[i],false);
+      }
+
+      vector<Point2f> mass(contours.size());
+      for(int i=0;i<contours.size();i++){
+        mass[i] = Point2f(mu[i].m10/mu[i].m00,mu[i].m01/mu[i].m00);
+      }
+
+      draw_mass_centers(input);
+    }
+
+    void draw_mass_centers(cv::Mat input){
+      for(int i=0;i<mass.size();i++){
+        input.at<float>(mass[i].x,mass[j].y)=cv::Scalar(0,255,0);
+      }
+    }
 };
 
+class Moments {
+  public:
+      Moments();
+      Moments(double m00, double m10, double m01, double m20, double m11,
+              double m02, double m30, double m21, double m12, double m03 );
+      Moments( const CvMoments& moments );
+      operator CvMoments() const;
 
-
-
+      // spatial moments
+      double  m00, m10, m01, m20, m11, m02, m30, m21, m12, m03;
+      // central moments
+      double  mu20, mu11, mu02, mu30, mu21, mu12, mu03;
+      // central normalized moments
+      double  nu20, nu11, nu02, nu30, nu21, nu12, nu03;
+};
 
 //--------------------- Global Variables ---------------------
 
