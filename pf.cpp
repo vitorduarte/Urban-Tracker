@@ -169,13 +169,13 @@ class Opt_flow {
         }
 
         if(i!=0&&i%step==0){
+
           mov_objects_prev=mov_objects_next;
-          //getchar();
+
+          mov_objects_next.clear();
+
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
-
-          //std::cout << "PREV_FRAME:" << prev_frame.size() << '|' << prev_frame.channels() << '\n';
-          //std::cout << "NEXT_FRAME:" << next_frame.size() << '|' << next_frame.channels() << '\n';
 
           cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow,
                                       pyr_scale/10.0, levels, winsize,
@@ -194,13 +194,11 @@ class Opt_flow {
           get_contours(flow_mask);
           create_trackbars();
 
-          if (mov_objects_prev.size()!=0){
-
+          if (mov_objects_prev.size()!=0&&mov_objects_next.size()!=0){
+            compare_mov_obj();
           }
 
           show_frame();
-          //print_moving_objects_vector();
-          //getchar();
 
           prev_frame=next_frame.clone();
         }
@@ -212,8 +210,8 @@ class Opt_flow {
 
     void show_frame(){
       cv::imshow("Video",frame);
-      cv::imshow("OPT_FLOW",flow_mask);
-      cv::imshow("Contours",cont_mask);
+      //cv::imshow("OPT_FLOW",flow_mask);
+      //cv::imshow("Contours",cont_mask);
     }
 
     void create_trackbars(){
@@ -288,15 +286,20 @@ class Opt_flow {
     }
 
     void get_contours(cv::Mat input){
+      int flag=0;
       std::vector<std::vector<cv::Point> > contours_poly(contours.size());
       std::vector<cv::Rect> boundRect(contours.size());
+
+      if (mov_objects_prev.size()==0) {
+        flag=1;
+      }
 
       for(int i=0;i<contours.size();i++){
         cv::approxPolyDP(cv::Mat(contours[i]),contours_poly[i],3,true );
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
         draw_rectangles(boundRect);
-        get_mov_obj(boundRect);
      }
+     get_mov_obj(boundRect,flag);
     }
 
     void draw_rectangles(std::vector<cv::Rect> boundRect){
@@ -305,31 +308,13 @@ class Opt_flow {
       }
     }
 
-    void get_mov_obj(std::vector<cv::Rect> boundRect){
+    void get_mov_obj(std::vector<cv::Rect> boundRect,int flag){
       cv::Point2f origin_point_aux;
-      if(mov_objects_prev.size()==0){
-        for (int i=0;i<contours.size();i++){
-          origin_point_aux.x=boundRect[i].x;
-          origin_point_aux.y=boundRect[i].y;
-          MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area(),i);
-          mov_objects_prev.push_back(aux);
-          /*std::cout << "Object i=" << i << ':' << '\n';
-          std::cout << "Height:" << mov_objects[i].get_height() << '\n';
-          std::cout << "Width:" << mov_objects[i].get_width() << '\n';
-          getchar();*/
-        }
-      }
-      else {
-        for (int i=0;i<contours.size();i++){
-          origin_point_aux.x=boundRect[i].x;
-          origin_point_aux.y=boundRect[i].y;
-          MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area(),i);
-          mov_objects_next.push_back(aux);
-          /*std::cout << "Object i=" << i << ':' << '\n';
-          std::cout << "Height:" << mov_objects[i].get_height() << '\n';
-          std::cout << "Width:" << mov_objects[i].get_width() << '\n';
-          getchar();*/
-        }
+      for (int i=0;i<contours.size();i++){
+        origin_point_aux.x=boundRect[i].x;
+        origin_point_aux.y=boundRect[i].y;
+        MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area(),i);
+        mov_objects_next.push_back(aux);
       }
     }
 
