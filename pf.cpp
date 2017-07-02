@@ -91,6 +91,20 @@ class MovObj{
     void set_label(int label_){
       label=label_;
     }
+
+    cv::Mat get_template(cv::Mat source){
+      if(get_width() != 0 && get_height() != 0){
+        cv::Rect cropped_rectangle = cv::Rect(square_origin.x, square_origin.y,
+                                            get_width(), get_height());
+        template_obj = source(cropped_rectangle);
+        return(template_obj);
+      }
+      cv::Rect cropped_rectangle = cv::Rect(square_origin.x, square_origin.y,
+                                            get_width(), get_height());
+      template_obj = source(cropped_rectangle);
+
+      return(template_obj);
+    }
 };
 
 class Opt_flow {
