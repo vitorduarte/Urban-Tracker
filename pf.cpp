@@ -37,6 +37,7 @@ class Opt_flow {
     int step,interval_pixels,tam_vel;
     int kernel_size;
     int threshold,ratio;
+    int pyr_scale, levels, winsize, iterations, poly_n, poly_sigma;
     std::vector<cv::Vec4i> hierarchy;
     std::vector<std::vector<cv::Point> > contours;
 
@@ -47,6 +48,7 @@ class Opt_flow {
       cv::namedWindow("Video");
       cv::namedWindow("OPT_FLOW");
       cv::namedWindow("Contours");
+      cv::namedWindow("Trackbars");
       //cv::namedWindow("OPT_FLOW-X");
       //cv::namedWindow("OPT_FLOW-Y");
       video=video_;
@@ -62,6 +64,13 @@ class Opt_flow {
       step=5;
       threshold=2;
       ratio=1;
+      pyr_scale = 5; //Will be divided for 10
+      levels = 3;
+      winsize = 15;
+      iterations = 3;
+      poly_n = 5;
+      poly_sigma = 1.2;
+
 
       video.open(filename);
     }
@@ -72,6 +81,7 @@ class Opt_flow {
       //cv::destroyWindow("OPT_FLOW-Y");
       cv::destroyWindow("OPT_FLOW");
       cv::destroyWindow("Contours");
+      cv::destroyWindow("Trackbars");
     }
 
     void play(){
@@ -90,9 +100,10 @@ class Opt_flow {
 
           //std::cout << "PREV_FRAME:" << prev_frame.size() << '|' << prev_frame.channels() << '\n';
           //std::cout << "NEXT_FRAME:" << next_frame.size() << '|' << next_frame.channels() << '\n';
-          getchar();
 
-          cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow, .5, 3, 15, 3, 5, 1.2, 0);
+          cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow,
+                                      pyr_scale/10.0, levels, winsize,
+                                      iterations, poly_n, poly_sigma, 0);
           //draw_flow(opt_flow,frame);
 
           get_xvals(opt_flow);
@@ -104,9 +115,8 @@ class Opt_flow {
           flow_mask.convertTo(cont_mask,CV_8U);
 
           cv::findContours(cont_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
-
           get_contours(flow_mask);
-
+          create_trackbars();
           show_frame();
 
           prev_frame=next_frame.clone();
@@ -121,6 +131,14 @@ class Opt_flow {
       cv::imshow("Video",frame);
       cv::imshow("OPT_FLOW",flow_mask);
       cv::imshow("Contours",cont_mask);
+    }
+
+    void create_trackbars(){
+      cv::createTrackbar("Pyramid Scale", "Trackbars", &pyr_scale, 9);
+      cv::createTrackbar("Levels", "Trackbars", &levels, 10);
+      cv::createTrackbar("Window Size", "Trackbars", &winsize, 50);
+      cv::createTrackbar("Iterations", "Trackbars", &iterations, 10);
+      cv::createTrackbar("Pixel Neighborhood Size", "Trackbars", &poly_n, 10);
     }
 
     void background_extr(){
@@ -219,7 +237,6 @@ class Opt_flow {
         std::cout << "i: " << i << '\n';
         cv::approxPolyDP(cv::Mat(contours[i]),contours_poly[i],3,true );
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
-
         draw_rectangles(boundRect);
      }
     }
@@ -249,6 +266,7 @@ class MovObj{
     }
     ~MovObj();
 };
+
 //--------------------- Global Variables ---------------------
 
 //--------------------- Main Function ---------------------
