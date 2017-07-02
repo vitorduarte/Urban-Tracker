@@ -20,33 +20,76 @@
 //--------------------- Classes ---------------------
 class MovObj{
   private:
-    int h, w;
+    int height, width;
     int area;
     cv::Point2f square_origin;
+    float error;
+    int height_cmp, width_cmp;
+    int area_cmp;
+    cv::Point2f square_origin_cmp;
     cv::Point2f center;
     cv::Point2f vel;
     cv::Mat template_obj;
+    int label;
 
   public:
-    MovObj(int h_, int w_, int area_){
-      //center = center_;
-      //square_origin = square_origin_;
-      h = h_;
-      w = w_;
+    MovObj(cv::Point2f square_origin_,int h_, int w_, int area_,int label_){
+
+      label=label_;
+      error=10;
+      error=error/100;
+      height = h_;
+      width = w_;
       area = area_;
+      square_origin=square_origin_;
+      height_cmp = height*sqrt(1+error);
+      width_cmp = width*sqrt(1+error);
+      area_cmp = height_cmp*width_cmp;
+      square_origin_cmp.x=square_origin.x-((square_origin.x+width_cmp)-(square_origin.x+width))/2;
+      square_origin_cmp.y=square_origin.y-((square_origin.y+height_cmp)-(square_origin.y+height))/2;
+      center.x=((square_origin.x)+(square_origin.x+width))/2;
+      center.y=((square_origin.y)+(square_origin.y+height))/2;
     }
     //~MovObj();
 
     int get_height(){
-      return(h);
+      return(height);
+    }
+
+    int get_height_cmp(){
+      return(height_cmp);
     }
 
     int get_width(){
-      return(w);
+      return(width);
+    }
+
+    int get_width_cmp(){
+      return(width_cmp);
     }
 
     int get_area(){
       return(area);
+    }
+
+    cv::Point2f get_origin(){
+      return(square_origin);
+    }
+
+    cv::Point2f get_origin_cmp(){
+      return(square_origin_cmp);
+    }
+
+    cv::Point2f get_center(){
+      return(center);
+    }
+
+    int get_label(){
+      return(label);
+    }
+
+    void set_label(int label_){
+      label=label_;
     }
 
     cv::Mat get_template(cv::Mat source){
@@ -77,7 +120,6 @@ class Opt_flow {
     float std_error;
     cv::Vec3b frame_intensity,next_frame_intensity;
     float errors;
-    int counter;
     CvSize win_size;
     int step,interval_pixels,tam_vel;
     int kernel_size;
@@ -85,7 +127,8 @@ class Opt_flow {
     int pyr_scale, levels, winsize, iterations, poly_n, poly_sigma;
     std::vector<cv::Vec4i> hierarchy;
     std::vector<std::vector<cv::Point> > contours;
-    std::vector<MovObj> mov_objects;
+    std::vector<MovObj> mov_objects_prev;
+    std::vector<MovObj> mov_objects_next;
 
 
   public:
@@ -100,7 +143,6 @@ class Opt_flow {
       video=video_;
       filename=filename_;
       std_error=80;
-      counter=0;
       std_error=(std_error/100);
       win_size.height=3;
       win_size.width=3;
@@ -141,6 +183,8 @@ class Opt_flow {
         }
 
         if(i!=0&&i%step==0){
+          mov_objects_prev=mov_objects_next;
+
           //getchar();
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
@@ -164,6 +208,10 @@ class Opt_flow {
           cv::findContours(cont_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
           get_contours(flow_mask);
           create_trackbars();
+
+          if (mov_objects_prev.size()!=0){
+
+          }
 
           show_frame();
           //print_moving_objects_vector();
@@ -189,31 +237,6 @@ class Opt_flow {
       cv::createTrackbar("Window Size", "Trackbars", &winsize, 50);
       cv::createTrackbar("Iterations", "Trackbars", &iterations, 10);
       cv::createTrackbar("Pixel Neighborhood Size", "Trackbars", &poly_n, 10);
-    }
-
-    void background_extr(){
-      int i,j,aux_error;
-
-      for(i=0;i<(frame.rows)-1;i++){
-        for(j=0;j<(frame.cols)-1;j++){
-          counter++;
-
-          frame_intensity = frame.at<uint>(i,j);
-          next_frame_intensity = next_frame.at<uint>(i,j);
-
-          if (next_frame_intensity.val[0]==0){
-            next_frame_intensity.val[0]=1;
-          }
-          errors=frame_intensity.val[0]/next_frame_intensity.val[0];
-
-          if(errors<1-std_error||errors>1+std_error){
-            opt_flow.at<uint>(i,j)=255;
-            //std::cout << "MUDOU O PIXEL" << '\n';
-          }
-        }
-      }
-      //std::cout << "TROCOU FRAME" << '\n';
-
     }
 
     void blackfy(cv::Mat input){
@@ -299,10 +322,25 @@ class Opt_flow {
     }
 
     void get_mov_obj(std::vector<cv::Rect> boundRect){
-      for (int i=0;i<contours.size();i++){
-        if(boundRect[i].area() != 0){
-          MovObj aux(boundRect[i].height,boundRect[i].width,boundRect[i].area());
-          mov_objects.push_back(aux);
+      cv::Point2f origin_point_aux;
+      if(mov_objects_prev.size()==0){
+        for (int i=0;i<contours.size();i++){
+          origin_point_aux.x=boundRect[i].x;
+          origin_point_aux.y=boundRect[i].y;
+          MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area(),i);
+          mov_objects_prev.push_back(aux);
+          /*std::cout << "Object i=" << i << ':' << '\n';
+          std::cout << "Height:" << mov_objects[i].get_height() << '\n';
+          std::cout << "Width:" << mov_objects[i].get_width() << '\n';
+          getchar();*/
+        }
+      }
+      else {
+        for (int i=0;i<contours.size();i++){
+          origin_point_aux.x=boundRect[i].x;
+          origin_point_aux.y=boundRect[i].y;
+          MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area(),i);
+          mov_objects_next.push_back(aux);
           /*std::cout << "Object i=" << i << ':' << '\n';
           std::cout << "Height:" << mov_objects[i].get_height() << '\n';
           std::cout << "Width:" << mov_objects[i].get_width() << '\n';
@@ -311,13 +349,24 @@ class Opt_flow {
       }
     }
 
-    void print_moving_objects_vector(){
-      for(int i=0;i<mov_objects.size();i++){
-        std::cout << "i=" << i << '\n';
-        std::cout << "Height:" << mov_objects[i].get_height() << '\n';
-        std::cout << "Width:" << mov_objects[i].get_width() << '\n';
-        std::cout << "Area:" << mov_objects[i].get_area() << '\n';
-        std::cout << "----------------------------------" << '\n';
+    void compare_mov_obj(){
+      cv::Point2f next_aux,prev_aux;
+      int height, width;
+
+      for(int i;i<mov_objects_next.size();i++){
+
+        next_aux=mov_objects_next[i].get_center();
+        for(int j;j<mov_objects_prev.size();j++){
+
+          prev_aux=mov_objects_prev[i].get_origin_cmp();
+          height=mov_objects_prev[i].get_height_cmp();
+          width=mov_objects_prev[i].get_width_cmp();
+          if(next_aux.x>=prev_aux.x&&next_aux.x<=(prev_aux.x+width)){
+            if(next_aux.y>=prev_aux.y&&next_aux.y<=(prev_aux.y+width)){
+              mov_objects_next[i].set_label(mov_objects_prev[j].get_label());
+            }
+          }
+        }
       }
     }
 };
