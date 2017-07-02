@@ -18,6 +18,37 @@
 #include <fstream>
 
 //--------------------- Classes ---------------------
+class MovObj{
+  private:
+    int h, w;
+    int area;
+    cv::Point2f square_origin;
+    cv::Point2f center;
+    cv::Point2f vel;
+    cv::Mat template_obj;
+
+  public:
+    MovObj(int h_, int w_, int area_){
+      //center = center_;
+      //square_origin = square_origin_;
+      h = h_;
+      w = w_;
+      area = area_;
+    }
+    //~MovObj();
+
+    int get_height(){
+      return(h);
+    }
+
+    int get_width(){
+      return(w);
+    }
+
+    int get_area(){
+      return(area);
+    }
+};
 
 class Opt_flow {
   private:
@@ -40,6 +71,7 @@ class Opt_flow {
     int pyr_scale, levels, winsize, iterations, poly_n, poly_sigma;
     std::vector<cv::Vec4i> hierarchy;
     std::vector<std::vector<cv::Point> > contours;
+    std::vector<MovObj> mov_objects;
 
 
   public:
@@ -95,6 +127,7 @@ class Opt_flow {
         }
 
         if(i!=0&&i%step==0){
+          getchar();
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
 
@@ -117,7 +150,10 @@ class Opt_flow {
           cv::findContours(cont_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
           get_contours(flow_mask);
           create_trackbars();
+
           show_frame();
+          print_moving_objects_vector();
+          getchar();
 
           prev_frame=next_frame.clone();
         }
@@ -234,38 +270,41 @@ class Opt_flow {
       std::vector<cv::Rect> boundRect(contours.size());
 
       for(int i=0;i<contours.size();i++){
-        std::cout << "i: " << i << '\n';
         cv::approxPolyDP(cv::Mat(contours[i]),contours_poly[i],3,true );
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
         draw_rectangles(boundRect);
+        get_mov_obj(boundRect);
      }
     }
 
     void draw_rectangles(std::vector<cv::Rect> boundRect){
-      for( int i = 0; i< contours.size(); i++ ){
+      for(int i=0; i< contours.size(); i++ ){
         rectangle(frame, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(0,0,255), 2, 8, 0 );
+      }
+    }
+
+    void get_mov_obj(std::vector<cv::Rect> boundRect){
+      for (int i=0;i<contours.size();i++){
+        MovObj aux(boundRect[i].height,boundRect[i].width,boundRect[i].area());
+        mov_objects.push_back(aux);
+        /*std::cout << "Object i=" << i << ':' << '\n';
+        std::cout << "Height:" << mov_objects[i].get_height() << '\n';
+        std::cout << "Width:" << mov_objects[i].get_width() << '\n';
+        getchar();*/
+      }
+    }
+
+    void print_moving_objects_vector(){
+      for(int i=0;i<mov_objects.size();i++){
+        std::cout << "i=" << i << '\n';
+        std::cout << "Height:" << mov_objects[i].get_height() << '\n';
+        std::cout << "Width:" << mov_objects[i].get_width() << '\n';
+        std::cout << "Area:" << mov_objects[i].get_area() << '\n';
+        std::cout << "----------------------------------" << '\n';
       }
     }
 };
 
-class MovObj{
-  private:
-    int h, w;
-    int area;
-    cv::Point2f square_origin;
-    cv::Point2f center;
-    cv::Point2f vel;
-    cv::Mat template_obj;
-
-  public:
-    MovObj(cv::Point2f center_, cv::Point2f square_origin_, int h_, int w_){
-      center = center_;
-      square_origin = square_origin_;
-      h = h_;
-      w = w_;
-    }
-    ~MovObj();
-};
 
 //--------------------- Global Variables ---------------------
 
