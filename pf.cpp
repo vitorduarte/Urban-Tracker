@@ -202,7 +202,24 @@ class Opt_flow {
     }
 };
 
+class MovObj{
+  private:
+    int h, w;
+    int area;
+    cv::Point2f square_origin;
+    cv::Point2f center;
+    cv::Point2f vel;
+    cv::Mat template_obj;
 
+  public:
+    MovObj(cv::Point2f center_, cv::Point2f square_origin_, int h_, int w_){
+      center = center_;
+      square_origin = square_origin_;
+      h = h_;
+      w = w_;
+    }
+    ~MovObj();
+};
 
 
 
