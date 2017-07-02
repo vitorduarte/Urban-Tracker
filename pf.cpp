@@ -48,6 +48,20 @@ class MovObj{
     int get_area(){
       return(area);
     }
+
+    cv::Mat get_template(cv::Mat source){
+      if(get_width() != 0 && get_height() != 0){
+        cv::Rect cropped_rectangle = cv::Rect(square_origin.x, square_origin.y,
+                                            get_width(), get_height());
+        template_obj = source(cropped_rectangle);
+        return(template_obj);
+      }
+      cv::Rect cropped_rectangle = cv::Rect(square_origin.x, square_origin.y,
+                                            get_width(), get_height());
+      template_obj = source(cropped_rectangle);
+
+      return(template_obj);
+    }
 };
 
 class Opt_flow {
@@ -127,7 +141,7 @@ class Opt_flow {
         }
 
         if(i!=0&&i%step==0){
-          getchar();
+          //getchar();
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
 
@@ -274,6 +288,7 @@ class Opt_flow {
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
         draw_rectangles(boundRect);
         get_mov_obj(boundRect);
+        //print_moving_objects_vector();
      }
     }
 
@@ -285,12 +300,14 @@ class Opt_flow {
 
     void get_mov_obj(std::vector<cv::Rect> boundRect){
       for (int i=0;i<contours.size();i++){
-        MovObj aux(boundRect[i].height,boundRect[i].width,boundRect[i].area());
-        mov_objects.push_back(aux);
-        /*std::cout << "Object i=" << i << ':' << '\n';
-        std::cout << "Height:" << mov_objects[i].get_height() << '\n';
-        std::cout << "Width:" << mov_objects[i].get_width() << '\n';
-        getchar();*/
+        if(boundRect[i].area() != 0){
+          MovObj aux(boundRect[i].height,boundRect[i].width,boundRect[i].area());
+          mov_objects.push_back(aux);
+          /*std::cout << "Object i=" << i << ':' << '\n';
+          std::cout << "Height:" << mov_objects[i].get_height() << '\n';
+          std::cout << "Width:" << mov_objects[i].get_width() << '\n';
+          getchar();*/
+        }
       }
     }
 
