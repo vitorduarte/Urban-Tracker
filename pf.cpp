@@ -24,7 +24,7 @@ class Opt_flow {
     cv::VideoCapture video;
     cv::String filename;
     cv::Mat frame;
-    cv::Mat opt_flow,flow_mask;
+    cv::Mat opt_flow,flow_mask,cont_mask;
     cv::Mat prev_frame,next_frame;
     cv::Mat x_vals,y_vals;
     std::vector<float> vel_x;
@@ -37,6 +37,8 @@ class Opt_flow {
     int step,interval_pixels,tam_vel;
     int kernel_size;
     int threshold,ratio;
+    std::vector<cv::Vec4i> hierarchy;
+    std::vector<std::vector<cv::Point> > contours;
 
 
   public:
@@ -44,6 +46,7 @@ class Opt_flow {
     Opt_flow(cv::VideoCapture video_ , cv::String filename_) {
       cv::namedWindow("Video");
       cv::namedWindow("OPT_FLOW");
+      cv::namedWindow("Contours");
       //cv::namedWindow("OPT_FLOW-X");
       //cv::namedWindow("OPT_FLOW-Y");
       video=video_;
@@ -68,6 +71,7 @@ class Opt_flow {
       //cv::destroyWindow("OPT_FLOW-X");
       //cv::destroyWindow("OPT_FLOW-Y");
       cv::destroyWindow("OPT_FLOW");
+      cv::destroyWindow("Contours");
     }
 
     void play(){
@@ -86,16 +90,22 @@ class Opt_flow {
 
           //std::cout << "PREV_FRAME:" << prev_frame.size() << '|' << prev_frame.channels() << '\n';
           //std::cout << "NEXT_FRAME:" << next_frame.size() << '|' << next_frame.channels() << '\n';
-          //getchar();
+          getchar();
 
           cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow, .5, 3, 15, 3, 5, 1.2, 0);
-          draw_flow(opt_flow,frame);
+          //draw_flow(opt_flow,frame);
 
           get_xvals(opt_flow);
           get_yvals(opt_flow);
           generate_flowmask(x_vals,y_vals);
           cv::GaussianBlur(flow_mask,flow_mask,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
           cv::threshold(flow_mask,flow_mask,threshold, threshold*ratio,cv::THRESH_BINARY);
+
+          flow_mask.convertTo(cont_mask,CV_8U);
+
+          cv::findContours(cont_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+
+          get_contours(flow_mask);
 
           show_frame();
 
@@ -110,8 +120,8 @@ class Opt_flow {
     void show_frame(){
       cv::imshow("Video",frame);
       cv::imshow("OPT_FLOW",flow_mask);
+      cv::imshow("Contours",cont_mask);
     }
-
 
     void background_extr(){
       int i,j,aux_error;
@@ -200,6 +210,25 @@ class Opt_flow {
 
       return(mag);
     }
+
+    void get_contours(cv::Mat input){
+      std::vector<std::vector<cv::Point> > contours_poly(contours.size());
+      std::vector<cv::Rect> boundRect(contours.size());
+
+      for(int i=0;i<contours.size();i++){
+        std::cout << "i: " << i << '\n';
+        cv::approxPolyDP(cv::Mat(contours[i]),contours_poly[i],3,true );
+        boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
+
+        draw_rectangles(boundRect);
+     }
+    }
+
+    void draw_rectangles(std::vector<cv::Rect> boundRect){
+      for( int i = 0; i< contours.size(); i++ ){
+        rectangle(frame, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(0,0,255), 2, 8, 0 );
+      }
+    }
 };
 
 class MovObj{
@@ -220,9 +249,6 @@ class MovObj{
     }
     ~MovObj();
 };
-
-
-
 //--------------------- Global Variables ---------------------
 
 //--------------------- Main Function ---------------------
