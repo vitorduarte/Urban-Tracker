@@ -152,8 +152,8 @@ class Opt_flow {
           create_trackbars();
 
           show_frame();
-          print_moving_objects_vector();
-          getchar();
+          //print_moving_objects_vector();
+          //getchar();
 
           prev_frame=next_frame.clone();
         }
