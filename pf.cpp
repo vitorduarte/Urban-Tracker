@@ -28,12 +28,15 @@ class MovObj{
     cv::Mat template_obj;
 
   public:
-    MovObj(int h_, int w_, int area_){
+    MovObj(cv::Point2f square_origin_,int h_, int w_, int area_){
       //center = center_;
       //square_origin = square_origin_;
       h = h_;
       w = w_;
       area = area_;
+      square_origin=square_origin_;
+      center.x=((square_origin.x)+(square_origin.x+w))/2;
+      center.y=((square_origin.y)+(square_origin.y+h))/2;
     }
     //~MovObj();
 
@@ -47,6 +50,10 @@ class MovObj{
 
     int get_area(){
       return(area);
+    }
+
+    cv::Point2f get_origin(){
+      return(square_origin);
     }
 };
 
@@ -127,7 +134,7 @@ class Opt_flow {
         }
 
         if(i!=0&&i%step==0){
-          getchar();
+          //getchar();
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
 
@@ -284,8 +291,11 @@ class Opt_flow {
     }
 
     void get_mov_obj(std::vector<cv::Rect> boundRect){
+      cv::Point2f origin_point_aux;
       for (int i=0;i<contours.size();i++){
-        MovObj aux(boundRect[i].height,boundRect[i].width,boundRect[i].area());
+        origin_point_aux.x=boundRect[i].x;
+        origin_point_aux.y=boundRect[i].y;
+        MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area());
         mov_objects.push_back(aux);
         /*std::cout << "Object i=" << i << ':' << '\n';
         std::cout << "Height:" << mov_objects[i].get_height() << '\n';
@@ -300,6 +310,7 @@ class Opt_flow {
         std::cout << "Height:" << mov_objects[i].get_height() << '\n';
         std::cout << "Width:" << mov_objects[i].get_width() << '\n';
         std::cout << "Area:" << mov_objects[i].get_area() << '\n';
+        std::cout << "Origin Point:" << mov_objects[i].get_origin() << '\n';
         std::cout << "----------------------------------" << '\n';
       }
     }
