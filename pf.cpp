@@ -22,7 +22,7 @@ class MovObj{
   private:
     int height, width;
     int area;
-    cv::Point2f square_origin;
+    cv::Point2f square_origin, square_end;
     float error;
     int height_cmp, width_cmp;
     int area_cmp;
@@ -42,6 +42,8 @@ class MovObj{
       width = w_;
       area = area_;
       square_origin=square_origin_;
+      square_end.x = (square_origin.x+width);
+      square_end.y = (square_origin.y+height);
       height_cmp = height*sqrt(1+error);
       width_cmp = width*sqrt(1+error);
       area_cmp = height_cmp*width_cmp;
@@ -75,7 +77,9 @@ class MovObj{
     cv::Point2f get_origin(){
       return(square_origin);
     }
-
+    cv::Point2f get_end(){
+      return(square_end);
+    }
     cv::Point2f get_origin_cmp(){
       return(square_origin_cmp);
     }
@@ -208,7 +212,7 @@ class Opt_flow {
           get_contours(flow_mask);
           create_trackbars();
 
-          if (mov_objects_prev.size()!=0&&mov_objects_next.size()!=0){
+          if (mov_objects_prev.size()!=0 && mov_objects_next.size()!=0){
             compare_mov_obj();
           }
 
@@ -302,14 +306,17 @@ class Opt_flow {
       for(int i=0;i<contours.size();i++){
         cv::approxPolyDP(cv::Mat(contours[i]),contours_poly[i],3,true );
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
-        draw_rectangles(boundRect);
-     }
-     get_mov_obj(boundRect,flag);
+      }
+      get_mov_obj(boundRect,flag);
+      draw_rectangles(mov_objects_next);
     }
 
-    void draw_rectangles(std::vector<cv::Rect> boundRect){
-      for(int i=0; i< contours.size(); i++ ){
-        rectangle(frame, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(0,0,255), 2, 8, 0 );
+    void draw_rectangles(std::vector<MovObj> mov_objects){
+      for(int i=0; i< mov_objects.size(); i++ ){
+        if(mov_objects[i].get_label() != 0){
+          rectangle(frame, mov_objects[i].get_origin(),mov_objects[i].get_end(),
+                    cv::Scalar(0,0,255), 2, 8, 0 );
+        }
       }
     }
 
@@ -330,14 +337,19 @@ class Opt_flow {
       for(int i;i<mov_objects_next.size();i++){
 
         next_aux=mov_objects_next[i].get_center();
+
         for(int j;j<mov_objects_prev.size();j++){
 
           prev_aux=mov_objects_prev[i].get_origin_cmp();
           height=mov_objects_prev[i].get_height_cmp();
           width=mov_objects_prev[i].get_width_cmp();
+
           if(next_aux.x>=prev_aux.x&&next_aux.x<=(prev_aux.x+width)){
-            if(next_aux.y>=prev_aux.y&&next_aux.y<=(prev_aux.y+width)){
+            if(next_aux.y>=prev_aux.y&&next_aux.y<=(prev_aux.y+height)){
               mov_objects_next[i].set_label(mov_objects_prev[j].get_label());
+            }
+            else{
+              mov_objects_next[i].set_label(-1);
             }
           }
         }
