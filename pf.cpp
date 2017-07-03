@@ -224,7 +224,7 @@ class Opt_flow {
 
     void show_frame(){
       cv::imshow("Video",frame);
-      //cv::imshow("OPT_FLOW",flow_mask);
+      cv::imshow("OPT_FLOW",flow_mask);
       //cv::imshow("Contours",cont_mask);
     }
 
@@ -234,15 +234,6 @@ class Opt_flow {
       cv::createTrackbar("Window Size", "Trackbars", &winsize, 50);
       cv::createTrackbar("Iterations", "Trackbars", &iterations, 10);
       cv::createTrackbar("Pixel Neighborhood Size", "Trackbars", &poly_n, 10);
-    }
-
-    void blackfy(cv::Mat input){
-      for(int i=0;i<input.rows;i++){
-        for(int j=0;j<input.cols;j++){
-          input.at<uint>(i,j)=0;
-          //std::cout << "(" << i << "," << j << ")" << '\n';
-        }
-      }
     }
 
     void draw_flow(cv::Mat input, cv::Mat output){
