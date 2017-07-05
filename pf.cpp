@@ -289,7 +289,7 @@ class Opt_flow {
 
         if (i==0){
           cv::cvtColor(frame,prev_frame,cv::COLOR_BGR2GRAY);
-          cv::GaussianBlur(prev_frame,prev_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+          //cv::GaussianBlur(prev_frame,prev_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
         }
 
         if(i!=0&&i%step==0){
@@ -298,7 +298,7 @@ class Opt_flow {
           mov_objects_prev.clear();
 
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
-          cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
+          //cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
 
           cv::calcOpticalFlowFarneback(prev_frame, next_frame, opt_flow,
                                       pyr_scale/10.0, levels, winsize,
@@ -312,7 +312,7 @@ class Opt_flow {
           cv::threshold(flow_mask,flow_mask,threshold, threshold*ratio,cv::THRESH_BINARY);
 
           flow_mask.convertTo(cont_mask,CV_8U);
-
+          morph_filter(flow_mask, kernel_size);
           cv::findContours(cont_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
           get_contours(flow_mask);
           //create_trackbars();
@@ -350,6 +350,7 @@ class Opt_flow {
       cv::createTrackbar("Window Size", "Trackbars", &winsize, 50);
       cv::createTrackbar("Iterations", "Trackbars", &iterations, 10);
       cv::createTrackbar("Pixel Neighborhood Size", "Trackbars", &poly_n, 10);
+      cv::createTrackbar("Kernel Size", "Trackbars", &kernel_size, 10);
     }
 
     void draw_flow(cv::Mat input, cv::Mat output){
@@ -397,7 +398,11 @@ class Opt_flow {
         }
       }
     }
-
+    void morph_filter(cv::Mat flow_mask, int kernel_size){
+      cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT,
+                                                cv::Size(2*kernel_size + 1, 2*kernel_size+1));
+      cv::morphologyEx(flow_mask, flow_mask, cv::MORPH_OPEN, kernel);
+    }
     float magnitude(float a, float b){
       float mag;
 
