@@ -234,6 +234,7 @@ class Opt_flow {
     std::vector<MovObj> mov_objects_next;
     std::vector<MovObj> tracking;
     int min_area;
+    int counter;
 
 
   public:
@@ -266,6 +267,7 @@ class Opt_flow {
       poly_n = 5;
       poly_sigma = 1.2;
       min_area = 700;
+      counter=0;
 
 
       video.open(filename);
@@ -317,7 +319,7 @@ class Opt_flow {
           get_contours(flow_mask);
           //create_trackbars();
 
-          if(tracking.size()==0){
+          if(tracking.size()==0||counter%3==0){
             tracking=mov_objects_prev;
           }
 
@@ -450,10 +452,8 @@ class Opt_flow {
           rectangle(frame, mov_objects[i].get_origin(),mov_objects[i].get_end(),color, 2, 8, 0 );
 
           /*vel = extract_velocity(mov_objects[i].get_origin(),mov_objects[i].get_height(),mov_objects[i].get_width());
-
           fpt.x=(mov_objects[i].get_center()).x+vel.x;
           fpt.y=(mov_objects[i].get_center()).y+vel.y;
-
           cv::line(frame,mov_objects[i].get_center(),fpt,cv::Scalar(0,255,0),2,8,0);
           cv::circle(frame,fpt,2, cv::Scalar(0,255,0), 2,8,0);*/
         }
@@ -502,13 +502,13 @@ class Opt_flow {
             template_aux = tracking[i].get_template(prev_frame);
 
             if(template_aux.rows!=0 && template_aux.cols!=0){
-              //cv::imshow("template",template_aux);
+              cv::imshow("template",template_aux);
             }
 
             template_roi_aux = tracking[i].get_template_roi(next_frame);
 
             if (template_roi_aux.rows!=0 && template_roi_aux.cols!=0) {
-              //cv::imshow("template_roi",template_roi_aux);
+              cv::imshow("template_roi",template_roi_aux);
             }
 
             //cv::waitKey(0);
