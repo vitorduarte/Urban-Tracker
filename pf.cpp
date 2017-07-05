@@ -319,12 +319,9 @@ class Opt_flow {
           get_contours(flow_mask);
           //create_trackbars();
 
-          if(tracking.size()==0||counter%3==0){
-            tracking=mov_objects_prev;
-          }
+          tracking=mov_objects_prev;
 
           compare_templates();
-          show_objects_rectangles(tracking);
 
           show_frame();
 
@@ -517,8 +514,10 @@ class Opt_flow {
             MovObj aux(new_origin , tracking[i].get_height() , tracking[i].get_width() );
 
             mov_objects_next.push_back(aux);
+
           }
       }
+      draw_rectangles(mov_objects_next,0);
     }
 
     cv::Point2f sum_of_squared_differences(cv::Mat templ,cv::Mat roi){
@@ -557,13 +556,6 @@ class Opt_flow {
       }
 
       return(new_origin);
-    }
-
-    void show_objects_rectangles(std::vector<MovObj> mov_objects){
-      //for (int i=0 ; i < mov_objects.size() ; i++){
-
-        draw_rectangles(mov_objects,0);
-        //getchar();
     }
 
     cv::Point extract_velocity(cv::Point2f origin,int height,int width){
