@@ -33,14 +33,14 @@ class MovObj{
     int label;
 
   public:
-    MovObj(cv::Point2f square_origin_,int h_, int w_, int area_,int label_){
+    MovObj(cv::Point2f square_origin_,int h_, int w_){
 
-      label=label_;
-      error=10;
+      //label=label_;
+      error=500;
       error=error/100;
       height = h_;
       width = w_;
-      area = area_;
+      area = height*width;
       square_origin=square_origin_;
       square_end.x = (square_origin.x+width);
       square_end.y = (square_origin.y+height);
@@ -97,9 +97,52 @@ class MovObj{
     }
 
     cv::Mat get_template(cv::Mat source){
+      cv::Point aux_tl,aux_br;
+
       if(get_width() != 0 && get_height() != 0){
-        cv::Rect cropped_rectangle = cv::Rect(square_origin.x, square_origin.y,
-                                                    get_width(), get_height());
+        cv::Rect cropped_rectangle = cv::Rect(square_origin.x, square_origin.y, get_width(), get_height());
+
+        aux_tl = cropped_rectangle.tl();
+        aux_br = cropped_rectangle.br();
+
+        if(aux_tl.x<0){
+          aux_tl.x=0;
+        }
+
+        if (aux_tl.x>source.cols) {
+          aux_tl.x=source.cols;
+        }
+
+        if (aux_tl.y>source.rows){
+          aux_tl.y=source.rows;
+        }
+
+        if (aux_tl.y<0) {
+          aux_tl.y=0;
+        }
+
+        //---------------------------
+
+        if(aux_br.x<0){
+          aux_br.x=0;
+        }
+
+        if (aux_br.x>source.cols) {
+          aux_br.x=source.cols;
+        }
+
+        if (aux_br.y>source.rows){
+          aux_br.y=source.rows;
+        }
+
+        if (aux_br.y<0) {
+          aux_br.y=0;
+        }
+
+        cv::Rect cropped_rectangle_aux(aux_tl,aux_br);
+        cropped_rectangle = cropped_rectangle_aux;
+
+
         template_obj = source(cropped_rectangle);
         return(template_obj);
       }
@@ -111,16 +154,59 @@ class MovObj{
     }
 
     cv::Mat get_template_roi(cv::Mat source){
+      cv::Point aux_tl,aux_br;
+
+
       if(get_width_cmp() != 0 && get_height_cmp() != 0){
         cv::Rect cropped_rectangle = cv::Rect(square_origin_cmp.x, square_origin_cmp.y,
                                                     get_width_cmp(), get_height_cmp());
+
+        aux_tl = cropped_rectangle.tl();
+        aux_br = cropped_rectangle.br();
+
+        if(aux_tl.x<0){
+          aux_tl.x=0;
+        }
+
+        if (aux_tl.x>source.cols) {
+          aux_tl.x=source.cols;
+        }
+
+        if (aux_tl.y>source.rows){
+          aux_tl.y=source.rows;
+        }
+
+        if (aux_tl.y<0) {
+          aux_tl.y=0;
+        }
+
+        //---------------------------
+
+        if(aux_br.x<0){
+          aux_br.x=0;
+        }
+
+        if (aux_br.x>source.cols) {
+          aux_br.x=source.cols;
+        }
+
+        if (aux_br.y>source.rows){
+          aux_br.y=source.rows;
+        }
+
+        if (aux_br.y<0) {
+          aux_br.y=0;
+        }
+
+        cv::Rect cropped_rectangle_aux(aux_tl,aux_br);
+        cropped_rectangle = cropped_rectangle_aux;
+
         template_roi = source(cropped_rectangle);
         return(template_roi);
       }
       cv::Rect cropped_rectangle = cv::Rect(square_origin_cmp.x, square_origin_cmp.y,
                                             get_width_cmp(), get_height_cmp());
       template_obj = source(cropped_rectangle);
-
       return(template_roi);
     }
 };
@@ -133,8 +219,6 @@ class Opt_flow {
     cv::Mat opt_flow,flow_mask,cont_mask;
     cv::Mat prev_frame,next_frame;
     cv::Mat x_vals,y_vals;
-    std::vector<float> vel_x;
-    std::vector<float> vel_y;
     float std_error;
     cv::Vec3b frame_intensity,next_frame_intensity;
     float errors;
@@ -148,6 +232,8 @@ class Opt_flow {
     std::vector<std::vector<cv::Point> > contours;
     std::vector<MovObj> mov_objects_prev;
     std::vector<MovObj> mov_objects_next;
+    std::vector<MovObj> tracking;
+    int min_area;
 
 
   public:
@@ -156,7 +242,7 @@ class Opt_flow {
       cv::namedWindow("Video");
       cv::namedWindow("OPT_FLOW");
       cv::namedWindow("Contours");
-      cv::namedWindow("Trackbars");
+      //cv::namedWindow("Trackbars");
       cv::namedWindow("template");
       cv::namedWindow("template_roi");
       //cv::namedWindow("OPT_FLOW-X");
@@ -170,7 +256,7 @@ class Opt_flow {
       kernel_size=3;
       interval_pixels=2;
       tam_vel=1;
-      step=2;
+      step=1;
       threshold=2;
       ratio=1;
       pyr_scale = 5; //Will be divided for 10
@@ -179,6 +265,7 @@ class Opt_flow {
       iterations = 3;
       poly_n = 5;
       poly_sigma = 1.2;
+      min_area = 700;
 
 
       video.open(filename);
@@ -207,9 +294,8 @@ class Opt_flow {
 
         if(i!=0&&i%step==0){
 
-          mov_objects_prev=mov_objects_next;
-
           mov_objects_next.clear();
+          mov_objects_prev.clear();
 
           cv::cvtColor(frame,next_frame,cv::COLOR_BGR2GRAY);
           cv::GaussianBlur(next_frame,next_frame,cv::Size(kernel_size,kernel_size) ,0,0,cv::BORDER_DEFAULT);
@@ -229,27 +315,32 @@ class Opt_flow {
 
           cv::findContours(cont_mask,contours, hierarchy, CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
           get_contours(flow_mask);
-          create_trackbars();
+          //create_trackbars();
 
-          if (mov_objects_prev.size()!=0 && mov_objects_next.size()!=0){
-            //compare_mov_obj();
-            compare_templates();
+          if(tracking.size()==0){
+            tracking=mov_objects_prev;
           }
+
+          compare_templates();
+          show_objects_rectangles(tracking);
 
           show_frame();
 
           prev_frame=next_frame.clone();
         }
 
-        std::cout << "i = " << i << '\n';
-        i++;
+        tracking=mov_objects_next;
+
+        //std::cout << "VAI MUDAR DE FRAME" << '\n';
         //getchar();
+        i++;
+
       }
     }
 
     void show_frame(){
       cv::imshow("Video",frame);
-      cv::imshow("OPT_FLOW",flow_mask);
+      //cv::imshow("OPT_FLOW",flow_mask);
       //cv::imshow("Contours",cont_mask);
     }
 
@@ -266,7 +357,7 @@ class Opt_flow {
           for (int x = 0; x < output.cols; x += interval_pixels)
           {
               const cv::Point2f flowatxy = input.at<cv::Point2f>(y, x) * tam_vel;
-              cv::line(output, cv::Point(x, y), cv::Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), cv::Scalar(255, 0, 0));
+              cv::line(output, cv::Point(x, y), cv::Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), cv::Scalar(255, 0, 255));
               cv::circle(output, cv::Point(x, y), 1, cv::Scalar(0, 0, 0), -1);
           }
       }
@@ -328,35 +419,45 @@ class Opt_flow {
         cv::approxPolyDP(cv::Mat(contours[i]),contours_poly[i],3,true );
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
       }
-      get_mov_obj(boundRect,flag);
-      draw_rectangles(mov_objects_next);
+      get_mov_obj(boundRect);
+      draw_rectangles(mov_objects_prev,2);
     }
 
-    void draw_rectangles(std::vector<MovObj> mov_objects){
-      for(int i=0; i< mov_objects.size(); i++ ){
-        if(mov_objects[i].get_label() != 0){
-          rectangle(frame, mov_objects[i].get_origin(),mov_objects[i].get_end(),
-                    cv::Scalar(0,0,255), 2, 8, 0 );
-        }
-      }
-    }
-
-    void get_mov_obj(std::vector<cv::Rect> boundRect,int flag){
+    void get_mov_obj(std::vector<cv::Rect> boundRect){
       cv::Point2f origin_point_aux;
       for (int i=0;i<contours.size();i++){
         origin_point_aux.x=boundRect[i].x;
         origin_point_aux.y=boundRect[i].y;
-        MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,boundRect[i].area(),i);
-        mov_objects_next.push_back(aux);
+        MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width);
+        mov_objects_prev.push_back(aux);
+      }
+    }
+
+    void draw_rectangles(std::vector<MovObj> mov_objects,int i){
+      cv::Scalar color;
+      cv::Point vel,fpt;
+
+        color[i]=255;
+        //std::cout << "color = " << color << '\n';
+
+      for(int i=0; i< mov_objects.size(); i++ ){
+        if((mov_objects[i].get_area()>min_area)){
+          rectangle(frame, mov_objects[i].get_origin(),mov_objects[i].get_end(),color, 2, 8, 0 );
+
+          /*vel = extract_velocity(mov_objects[i].get_origin(),mov_objects[i].get_height(),mov_objects[i].get_width());
+
+          fpt.x=(mov_objects[i].get_center()).x+vel.x;
+          fpt.y=(mov_objects[i].get_center()).y+vel.y;
+
+          cv::line(frame,mov_objects[i].get_center(),fpt,cv::Scalar(0,255,0),2,8,0);
+          cv::circle(frame,fpt,2, cv::Scalar(0,255,0), 2,8,0);*/
+        }
       }
     }
 
     void compare_mov_obj(){
       cv::Point2f next_aux,prev_aux;
       int height, width;
-      std::cout << "mov_objects_next.size()=" << mov_objects_next.size() << '\n';
-      std::cout << "mov_objects_prev.size()=" << mov_objects_prev.size() << '\n';
-      getchar();
 
       for(int i=0;i<mov_objects_next.size();i++){
 
@@ -372,13 +473,13 @@ class Opt_flow {
             if(next_aux.y>=prev_aux.y&&next_aux.y<=(prev_aux.y+height)){
               mov_objects_next[i].set_label(mov_objects_prev[j].get_label());
 
-              std::cout << "SETOU HEIN: " << i << '|' << j << '\n';
-              getchar();
+              //std::cout << "SETOU HEIN: " << i << '|' << j << '\n';
+              //getchar();
             }
             else{
               mov_objects_next[i].set_label(-1);
-              std::cout << "SETOU -1 :( " << i << '|' << j << '\n';
-              getchar();
+              //std::cout << "SETOU -1 :( " << i << '|' << j << '\n';
+              //getchar();
             }
           }
         }
@@ -386,45 +487,32 @@ class Opt_flow {
     }
 
     void compare_templates(){
-      cv::Point2f origin;
+      cv::Point2f new_origin;
       cv::Mat template_aux,template_roi_aux;
 
-      /*std::cout << "mov_objects_next.size()=" << mov_objects_next.size() << '\n';
-      std::cout << "mov_objects_prev.size()=" << mov_objects_prev.size() << '\n';
-      getchar();*/
+      for(int i=0;i<tracking.size();i++){
 
-      for(int i=0;i<mov_objects_next.size();i++){
-        for(int j=0;j<mov_objects_prev.size();j++){
+          if((tracking[i].get_area()>min_area)){
 
-          //std::cout << "(" << i << "," << j << ")" << '\n';
+            template_aux = tracking[i].get_template(prev_frame);
 
-          if(mov_objects_next[i].get_label()==mov_objects_prev[j].get_label()){
+            if(template_aux.rows!=0 && template_aux.cols!=0){
+              //cv::imshow("template",template_aux);
+            }
 
-            template_aux = mov_objects_prev[j].get_template(prev_frame);
+            template_roi_aux = tracking[i].get_template_roi(next_frame);
 
-            /*std::cout << "template size = " << template_aux.size() << '\n';
-            cv::imshow("template",template_aux);
-            cv::waitKey(0);*/
+            if (template_roi_aux.rows!=0 && template_roi_aux.cols!=0) {
+              //cv::imshow("template_roi",template_roi_aux);
+            }
 
-            template_roi_aux = mov_objects_prev[j].get_template_roi(next_frame);
+            //cv::waitKey(0);
 
-            /*std::cout << "roi size = " << template_roi_aux.size() << '\n';
-            cv::imshow("template_roi",template_roi_aux);
-            cv::waitKey(0);*/
+            new_origin = sum_of_squared_differences(template_aux,template_roi_aux) + tracking[i].get_origin_cmp();
+            MovObj aux(new_origin , tracking[i].get_height() , tracking[i].get_width() );
 
-            origin=sum_of_squared_differences(template_aux,template_roi_aux)+mov_objects_prev[j].get_origin();
-            //std::cout << "NEW ORIGIN=" << origin << '\n';
-            //getchar();
-            cv::line(frame,mov_objects_prev[j].get_origin(),origin,cv::Scalar(0,255,0),1,8,0);
-            cv::circle(frame,origin,5, cv::Scalar(0,255,0),1,8,0);
-
-            //std::cout << "esses i e j tem mesma label" << '\n';
-
+            mov_objects_next.push_back(aux);
           }
-
-          //getchar();
-
-        }
       }
     }
 
@@ -442,23 +530,13 @@ class Opt_flow {
             for(int j=0;j<templ.cols;j++){ //Esse laço faz o cálculo da sdd, entre os templates de mesmo tamanho
 
               diff=((int)(templ.at<uint>(i,j))-(int)(roi.at<uint>(i+x,j+y)));
-              //std::cout << "DIFF=" << diff << '\n';
-              //getchar();
               sdd_aux+=(diff*diff);
 
-              /*std::cout << "i=" << i << '|' << "j=" << j << '\n';
-              std::cout << "x=" << x << '|' << "y=" << y << '\n';
-              std::cout << "sdd_aux=" << sdd_aux << '\n';
-              std::cout << "1minor_sdd=" << minor_sdd << '\n';*/
             }
           }
 
-          //getchar();
-
           if(minor_sdd==0){
             minor_sdd=sdd_aux;
-            //std::cout << "2minor_sdd=" << minor_sdd << '\n';
-            //getchar();
             new_origin.x = x;
             new_origin.y = y;
           }
@@ -469,17 +547,38 @@ class Opt_flow {
               new_origin.y = y;
             }
           }
-          //std::cout << "3minor_sdd=" << minor_sdd << '\n';
-          //getchar();
 
         }
       }
-      //std::cout << "POINT CALCULATED = " << new_origin << '\n';
-      //getchar();
+
       return(new_origin);
     }
-};
 
+    void show_objects_rectangles(std::vector<MovObj> mov_objects){
+      //for (int i=0 ; i < mov_objects.size() ; i++){
+
+        draw_rectangles(mov_objects,0);
+        //getchar();
+    }
+
+    cv::Point extract_velocity(cv::Point2f origin,int height,int width){
+      int vel_x=0,vel_y=0;
+      cv::Point Vel;
+
+      for(int i=origin.x;i<origin.x+width;i++){
+        for(int j=origin.y;j<origin.y+height;j++){
+          vel_x += x_vals.at<uint>(i,j);
+          vel_y += y_vals.at<uint>(i,j);
+        }
+      }
+      vel_x = vel_x/(height*width);
+      vel_y = vel_y/(height*width);
+      Vel.x = vel_x;
+      Vel.y = vel_y;
+
+      return(Vel);
+    }
+};
 
 //--------------------- Global Variables ---------------------
 
