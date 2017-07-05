@@ -33,10 +33,10 @@ class MovObj{
     int label;
 
   public:
-    MovObj(cv::Point2f square_origin_,int h_, int w_){
+    MovObj(cv::Point2f square_origin_,int h_, int w_,int label_){
 
-      //label=label_;
-      error=500;
+      label=label_;
+      error=10;
       error=error/100;
       height = h_;
       width = w_;
@@ -219,7 +219,6 @@ class Opt_flow {
     cv::Mat opt_flow,flow_mask,cont_mask;
     cv::Mat prev_frame,next_frame;
     cv::Mat x_vals,y_vals;
-    float std_error;
     cv::Vec3b frame_intensity,next_frame_intensity;
     float errors;
     CvSize win_size;
@@ -250,8 +249,6 @@ class Opt_flow {
       //cv::namedWindow("OPT_FLOW-Y");
       video=video_;
       filename=filename_;
-      std_error=80;
-      std_error=(std_error/100);
       win_size.height=3;
       win_size.width=3;
       kernel_size=3;
@@ -397,11 +394,13 @@ class Opt_flow {
         }
       }
     }
+
     void morph_filter(cv::Mat flow_mask, int kernel_size){
       cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT,
                                                 cv::Size(2*kernel_size + 1, 2*kernel_size+1));
       cv::morphologyEx(flow_mask, flow_mask, cv::MORPH_OPEN, kernel);
     }
+
     float magnitude(float a, float b){
       float mag;
 
@@ -424,7 +423,7 @@ class Opt_flow {
         boundRect[i] = cv::boundingRect(cv::Mat(contours_poly[i]));
       }
       get_mov_obj(boundRect);
-      draw_rectangles(mov_objects_prev,2);
+      //draw_rectangles(mov_objects_prev,2);
     }
 
     void get_mov_obj(std::vector<cv::Rect> boundRect){
@@ -432,7 +431,7 @@ class Opt_flow {
       for (int i=0;i<contours.size();i++){
         origin_point_aux.x=boundRect[i].x;
         origin_point_aux.y=boundRect[i].y;
-        MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width);
+        MovObj aux(origin_point_aux,boundRect[i].height,boundRect[i].width,-1);
         mov_objects_prev.push_back(aux);
       }
     }
@@ -448,53 +447,20 @@ class Opt_flow {
         if((mov_objects[i].get_area()>min_area)){
           rectangle(frame, mov_objects[i].get_origin(),mov_objects[i].get_end(),color, 2, 8, 0 );
 
-          /*vel = extract_velocity(mov_objects[i].get_origin(),mov_objects[i].get_height(),mov_objects[i].get_width());
-          fpt.x=(mov_objects[i].get_center()).x+vel.x;
-          fpt.y=(mov_objects[i].get_center()).y+vel.y;
-          cv::line(frame,mov_objects[i].get_center(),fpt,cv::Scalar(0,255,0),2,8,0);
-          cv::circle(frame,fpt,2, cv::Scalar(0,255,0), 2,8,0);*/
-        }
-      }
-    }
-
-    void compare_mov_obj(){
-      cv::Point2f next_aux,prev_aux;
-      int height, width;
-
-      for(int i=0;i<mov_objects_next.size();i++){
-
-        next_aux=mov_objects_next[i].get_center();
-
-        for(int j=0;j<mov_objects_prev.size();j++){
-
-          prev_aux=mov_objects_prev[i].get_origin_cmp();
-          height=mov_objects_prev[i].get_height_cmp();
-          width=mov_objects_prev[i].get_width_cmp();
-
-          if(next_aux.x>=prev_aux.x&&next_aux.x<=(prev_aux.x+width)){
-            if(next_aux.y>=prev_aux.y&&next_aux.y<=(prev_aux.y+height)){
-              mov_objects_next[i].set_label(mov_objects_prev[j].get_label());
-
-              //std::cout << "SETOU HEIN: " << i << '|' << j << '\n';
-              //getchar();
-            }
-            else{
-              mov_objects_next[i].set_label(-1);
-              //std::cout << "SETOU -1 :( " << i << '|' << j << '\n';
-              //getchar();
-            }
-          }
         }
       }
     }
 
     void compare_templates(){
+
       cv::Point2f new_origin;
       cv::Mat template_aux,template_roi_aux;
 
       for(int i=0;i<tracking.size();i++){
 
           if((tracking[i].get_area()>min_area)){
+
+            tracking[i].set_label(1);
 
             template_aux = tracking[i].get_template(prev_frame);
 
@@ -511,13 +477,21 @@ class Opt_flow {
             //cv::waitKey(0);
 
             new_origin = sum_of_squared_differences(template_aux,template_roi_aux) + tracking[i].get_origin_cmp();
-            MovObj aux(new_origin , tracking[i].get_height() , tracking[i].get_width() );
+            MovObj aux(new_origin , tracking[i].get_height() , tracking[i].get_width(),1 );
 
             mov_objects_next.push_back(aux);
 
           }
       }
       draw_rectangles(mov_objects_next,0);
+
+      /*for(int i=0;i<tracking.size();i++){
+        if(tracking[i].get_label()==1){
+          cv::line(frame,tracking[i].get_center(),mov_objects_next[i].get_center(),cv::Scalar(0,255,0),2,8,0);
+          cv::circle(frame,mov_objects_next[i].get_center(),2, cv::Scalar(0,255,0), 2,8,0);
+        }
+      }*/
+
     }
 
     cv::Point2f sum_of_squared_differences(cv::Mat templ,cv::Mat roi){
@@ -556,24 +530,6 @@ class Opt_flow {
       }
 
       return(new_origin);
-    }
-
-    cv::Point extract_velocity(cv::Point2f origin,int height,int width){
-      int vel_x=0,vel_y=0;
-      cv::Point Vel;
-
-      for(int i=origin.x;i<origin.x+width;i++){
-        for(int j=origin.y;j<origin.y+height;j++){
-          vel_x += x_vals.at<uint>(i,j);
-          vel_y += y_vals.at<uint>(i,j);
-        }
-      }
-      vel_x = vel_x/(height*width);
-      vel_y = vel_y/(height*width);
-      Vel.x = vel_x;
-      Vel.y = vel_y;
-
-      return(Vel);
     }
 };
 
